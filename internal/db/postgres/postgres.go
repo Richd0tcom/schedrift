@@ -7,7 +7,6 @@ import (
 
 	"github.com/Richd0tcom/schedrift/internal/config"
 	_ "github.com/lib/pq"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type Connection struct {
