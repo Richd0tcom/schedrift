@@ -57,9 +57,9 @@ func (c *Connection) Exec(query string, args ...any) (sql.Result, error) {
 	return c.db.Exec(query, args...)
 }
 
-func (c *Connection) GetPGVersion() (string, error) {
+func (c *Connection) GetVersion() (string, error) {
 	var version string
-	err := c.QueryRow("SELECT version()").Scan(&version)
+	err := c.db.QueryRow("SELECT version()").Scan(&version)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to get PostgreSQL version: %w", err)

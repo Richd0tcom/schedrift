@@ -10,12 +10,13 @@ import (
 )
 
 type DatabaseConfig struct {
-	Host     string `mapstructure:"host"`
-	Port     string `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
+	Driver       string `mapstructure:"driver"`
+	Host         string `mapstructure:"host"`
+	Port         string `mapstructure:"port"`
+	User         string `mapstructure:"user"`
+	Password     string `mapstructure:"password"`
 	DatabaseName string `mapstructure:"database_name"`
-	SSLMode  string `mapstructure:"sslmode"`
+	SSLMode      string `mapstructure:"sslmode"`
 }
 
 type SchemaConfig struct {
@@ -23,18 +24,17 @@ type SchemaConfig struct {
 	ExcludedSchemas []string `mapstructure:"excluded_schemas"`
 	IncludedTables  []string `mapstructure:"included_tables"`
 	ExcludedTables  []string `mapstructure:"excluded_tables"`
-
 }
 
 type OutputConfig struct {
 	Format string `mapstructure:"format"`
-	File  string `mapstructure:"file"`
+	File   string `mapstructure:"file"`
 }
 
 type Config struct {
 	DatabaseConfig DatabaseConfig `mapstructure:"database"`
-	SchemaConfig SchemaConfig `mapstructure:"schema"`
-	OutputConfig OutputConfig `mapstructure:"output"`
+	SchemaConfig   SchemaConfig   `mapstructure:"schema"`
+	OutputConfig   OutputConfig   `mapstructure:"output"`
 }
 
 func SetupFlags(flags *pflag.FlagSet) {
@@ -45,7 +45,6 @@ func SetupFlags(flags *pflag.FlagSet) {
 	flags.String("password", "", "Database password")
 	flags.String("dbname", "", "Database name")
 	flags.String("sslmode", "prefer", "SSL mode (disable, prefer, require, verify-ca, verify-full)")
-
 
 	//schema
 	flags.StringSlice("include", []string{"public"}, "Schemas to include")
@@ -59,32 +58,29 @@ func SetupFlags(flags *pflag.FlagSet) {
 	flags.String("config", "", "Configuration file path")
 }
 
-
-
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.host", "localhost")
 	v.SetDefault("database.port", 5432)
-	v.SetDefault("database.sslmode", "prefer")  //preffered ?
+	v.SetDefault("database.sslmode", "prefer") //preffered ?
 	v.SetDefault("schema.include", []string{"public"})
 	v.SetDefault("output.format", "sql")
 }
 
-func LoadFromFlags(flags *pflag.FlagSet) (*Config, error){
-	v:= viper.New()
+func LoadFromFlags(flags *pflag.FlagSet) (*Config, error) {
+	v := viper.New()
 
-	if err:= v.BindPFlags(flags); err!=nil {
+	if err := v.BindPFlags(flags); err != nil {
 		return nil, fmt.Errorf("error binding flags: %w", err)
 	}
 
-
 	v.SetEnvPrefix("SCHEMA_DRIFT")
-	v.SetEnvKeyReplacer(strings.NewReplacer("-","_"))
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	v.AutomaticEnv()
 
 	//checks if a config file is being used
 	if cfgFile := v.GetString("config"); cfgFile != "" {
 		v.SetConfigFile(cfgFile)
-		if err := v.ReadInConfig(); err!=nil {
+		if err := v.ReadInConfig(); err != nil {
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
 	}
@@ -96,7 +92,7 @@ func LoadFromFlags(flags *pflag.FlagSet) (*Config, error){
 		v.Set("password", password)
 	}
 
-	cfg:= Config{}
+	cfg := Config{}
 
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("error unmarshalling config: %w", err)
@@ -107,4 +103,3 @@ func LoadFromFlags(flags *pflag.FlagSet) (*Config, error){
 	return &cfg, nil
 
 }
-
