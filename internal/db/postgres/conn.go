@@ -9,11 +9,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type Connection struct {
+type PGConnection struct {
 	db *sql.DB
 }
 
-func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
+func NewConnection(cfg config.DatabaseConfig) (*PGConnection, error) {
 	connStr := fmt.Sprintf(
 	"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", 
 	cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DatabaseName, cfg.SSLMode)
@@ -32,32 +32,32 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return &Connection{db: db}, nil
+	return &PGConnection{db: db}, nil
 }
 
 
-func (c *Connection) Close() error {
+func (c *PGConnection) Close() error {
 	return c.db.Close()
 }
 
-func (c *Connection) DB() *sql.DB {
+func (c *PGConnection) DB() *sql.DB {
 	return c.db
 }
 
-func (c *Connection) Query(query string, args ...any) (*sql.Rows, error) {
+func (c *PGConnection) Query(query string, args ...any) (*sql.Rows, error) {
 	return c.db.Query(query, args...)
 }
 
-func (c *Connection) QueryRow(query string, args ...any) *sql.Row {
+func (c *PGConnection) QueryRow(query string, args ...any) *sql.Row {
 	return c.db.QueryRow(query, args...)
 }
 
 // Exec executes a query without returning any rows
-func (c *Connection) Exec(query string, args ...any) (sql.Result, error) {
+func (c *PGConnection) Exec(query string, args ...any) (sql.Result, error) {
 	return c.db.Exec(query, args...)
 }
 
-func (c *Connection) GetVersion() (string, error) {
+func (c *PGConnection) GetVersion() (string, error) {
 	var version string
 	err := c.db.QueryRow("SELECT version()").Scan(&version)
 
