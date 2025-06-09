@@ -1,0 +1,9 @@
+TABLE
+
+
+
+COLUMNS
+- Making a column NOT NULL is more severe than making it nullable
+- Type changes are often high severity depending on the change
+- Removing a column is high severity
+- Adding a NOT NULL column is high severity

@@ -162,9 +162,30 @@ func (e *PGExtractor) extractColumns(table *models.Table) error {
 		return fmt.Errorf("error querying columns %w", err)
 	}
 
+	defer rows.Close()
+
+	if rows.Next() {
+		col := &models.Column{}
+		var defaultValue, comment *string 
+		rows.Scan(&col.Name, &col.DataType, &col.IsNullable, &defaultValue, &comment)
+
+	
+
+		if defaultValue != nil {
+			col.DefaultValue = *defaultValue
+		}
+		if comment != nil {
+			col.Comment = 
+			*comment
+		}
+		table.Columns = append(table.Columns, col)
+	}
+
+	if err= rows.Err(); err!=nil {
+		return fmt.Errorf("error scanning columns %w", err)
+	}
 
 	return nil
-
 
 }
 
