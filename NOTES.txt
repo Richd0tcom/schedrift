@@ -1,0 +1,21 @@
+SEVERITY NOTES
+
+TABLE
+
+
+
+COLUMNS
+- Making a column NOT NULL is more severe than making it nullable
+- Type changes are often high severity depending on the change
+- Removing a column is high severity
+- Adding a NOT NULL column is high severity
+
+column breaking changes
+- Different type families are usually breaking
+
+
+PARSE NOTES
+
+Comments in SQL continue until line terminates so you can parse/remove them by \n
+Be careful about semicolons within strings while parsing
+Split Table definition by commas, but respect parentheses and quotes
