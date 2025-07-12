@@ -19,3 +19,16 @@ PARSE NOTES
 Comments in SQL continue until line terminates so you can parse/remove them by \n
 Be careful about semicolons within strings while parsing
 Split Table definition by commas, but respect parentheses and quotes
+
+
+Loader notes
+Schema file likelyhood ranking:
+1. Prefer files with "schema" in the name. score = 10
+2. Prefer files named exactly "schema.sql". score = 20
+3. Prefer files in certain directories (db, database). score =5
+4. Penalize files in migrations directories (usually incremental changes). score = -5
+5. Prefer larger files (more likely to be complete schemas). score = 3 or 1 depending o size
+
+File is likely a schema file if it has multiple schema-related keywords
+
+sort score by highest first
