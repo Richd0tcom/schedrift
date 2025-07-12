@@ -9,4 +9,4 @@ Schedrift Todo's
 
 ### TUI
 - [] add warning and success styles for proper visualization
-- []
+- [] 

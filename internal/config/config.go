@@ -10,6 +10,7 @@ import (
 )
 
 type DatabaseConfig struct {
+	Url          string `mapstructure:"url"`
 	Driver       string `mapstructure:"driver"`
 	Host         string `mapstructure:"host"`
 	Port         string `mapstructure:"port"`
@@ -39,6 +40,7 @@ type Config struct {
 
 func SetupFlags(flags *pflag.FlagSet) {
 	//DB
+	flags.String("url", "", "Database connection URL")
 	flags.String("host", "localhost", "Database host")
 	flags.Int("port", 5432, "Database port")
 	flags.String("user", "", "Database user")

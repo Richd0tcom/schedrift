@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Richd0tcom/schedrift/internal/config"
 	"github.com/Richd0tcom/schedrift/internal/db"
+	"github.com/Richd0tcom/schedrift/internal/tui"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +19,59 @@ func main() {
 		Long: `Schema Drift Detector (schemarift) is a CLI tool that helps you detect
 differences between your production database schema and your reference schema.
 It allows you to prevent unexpected schema changes and maintain consistency.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// If no subcommand is provided, run the TUI
+			url, _ := cmd.Flags().GetString("url")
+			if url == "" {
+				// If no URL is provided, show help
+				return cmd.Help()
+			}
+
+			schemaName, _ := cmd.Flags().GetString("schema")
+
+			dbConfig := config.DatabaseConfig{
+				Url: url,
+			}
+			// Create connection
+			conn, err := db.NewConnection(dbConfig)
+			if err != nil {
+				return fmt.Errorf("failed to create database connector: %w", err)
+			}
+
+			// Start the TUI with a loading message
+			tuiModel := tui.NewModel()
+			p := tea.NewProgram(tuiModel, tea.WithAltScreen())
+
+			// Start extraction in a goroutine
+			go func() {
+				// First show connection info
+				p.Send(tui.ConnectionMsg{Message: fmt.Sprintf("Connecting to %s...", url)})
+
+				// Extract schema
+				extractor, err := db.NewExtractor(conn)
+
+				if err != nil {
+					p.Send(tui.ErrorMsg{Err: fmt.Errorf("failed to create extractor: %w", err)})
+					return
+				}
+
+				schema, err := extractor.Extract([]string{schemaName}, []string{})
+				if err != nil {
+					p.Send(tui.ErrorMsg{Err: fmt.Errorf("failed to extract schema: %w", err)})
+					return
+				}
+
+				// Send schema to TUI
+				p.Send(tui.SchemaFetchedMsg{Schema: schema})
+			}()
+
+			// Run the TUI
+			if _, err := p.Run(); err != nil {
+				return fmt.Errorf("error running TUI: %w", err)
+			}
+
+			return nil
+		},
 	}
 
 	// Add commands
@@ -45,19 +101,26 @@ and other database objects.`,
 			url, _ := cmd.Flags().GetString("url")
 			schemaName, _ := cmd.Flags().GetString("schema")
 			output, _ := cmd.Flags().GetString("output")
-			
+
+			dbConfig := config.DatabaseConfig{
+				Url: url,
+			}
 			// Create connection
-			conn, err := db.NewConnection(url)
+			conn, err := db.NewConnection(dbConfig)
 			if err != nil {
 				return fmt.Errorf("failed to create database connector: %w", err)
 			}
-			
+
 			// Extract schema
-			schema, err := conn.ExtractSchema(schemaName)
+			extractor, err := db.NewExtractor(conn)
+			if err != nil {
+				return fmt.Errorf("failed to create extractor: %w", err)
+			}
+			schema, err := extractor.Extract([]string{schemaName}, []string{})
 			if err != nil {
 				return fmt.Errorf("failed to extract schema: %w", err)
 			}
-			
+
 			// Write to output
 			if output == "" {
 				// Write to stdout
@@ -70,19 +133,14 @@ and other database objects.`,
 				}
 				fmt.Printf("Schema dumped to %s\n", output)
 			}
-			
+
 			return nil
 		},
 	}
-	
-	// Add flags
-	dumpCmd.Flags().String("url", "", "Database connection URL (required)")
-	dumpCmd.Flags().String("schema", "public", "Schema name to extract")
+
+	// Add local flags
 	dumpCmd.Flags().String("output", "", "Output file path (stdout if not specified)")
-	
-	// Mark required flags
-	dumpCmd.MarkFlagRequired("url")
-	
+
 	return dumpCmd
 }
 
@@ -100,9 +158,9 @@ are found.`,
 			return nil
 		},
 	}
-	
+
 	// Add flags (we'll implement this later)
-	
+
 	return checkCmd
 }
 
@@ -119,9 +177,9 @@ This command does not connect to a database but works with schema files.`,
 			return nil
 		},
 	}
-	
+
 	// Add flags (we'll implement this later)
-	
+
 	return diffCmd
 }
 
@@ -139,9 +197,9 @@ database connections, schema comparison, and notifications.`,
 			return nil
 		},
 	}
-	
+
 	// Add flags (we'll implement this later)
-	
+
 	return initCmd
 }
 

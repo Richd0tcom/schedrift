@@ -11,12 +11,19 @@ import (
 
 type PGConnection struct {
 	db *sql.DB
+	DriverName string
 }
 
 func NewConnection(cfg config.DatabaseConfig) (*PGConnection, error) {
-	connStr := fmt.Sprintf(
-	"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", 
-	cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DatabaseName, cfg.SSLMode)
+	var connStr string
+	if cfg.Url != "" {
+		connStr = cfg.Url
+	} else {
+		connStr = fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", 
+			cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DatabaseName, cfg.SSLMode)
+	}
+
 
 
 	db, err:= sql.Open("postgres", connStr)
@@ -65,4 +72,8 @@ func (c *PGConnection) GetVersion() (string, error) {
 		return "", fmt.Errorf("failed to get PostgreSQL version: %w", err)
 	}
 	return version, nil
+}
+
+func (c *PGConnection) GetDriverName() string {
+	return c.DriverName
 }

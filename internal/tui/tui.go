@@ -28,6 +28,10 @@ var (
 			Background(lipgloss.Color("#F25F5C")).
 			Padding(0, 1)
 
+	sectionStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#1E88E5"))
+
 	warningStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFFDF5")).
 			Background(lipgloss.Color("#F9DC4B")).
@@ -37,20 +41,33 @@ var (
 			Foreground(lipgloss.Color("#FFFDF5")).
 			Background(lipgloss.Color("#2A9D8F")).
 			Padding(0, 1)
+
+	highlightStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF9800"))
 )
 
 // Model represents the TUI model
 type Model struct {
-	spinner    spinner.Model
-	viewport   viewport.Model
-	content    string
-	loading    bool
-	loadingMsg string
-	error      error
-	schema     *models.Schema
-	width      int
-	height     int
-	ready      bool
+	spinner           spinner.Model
+	viewport          viewport.Model
+	content           string
+	loading           bool
+	loadingMsg        string
+	error             error
+	schema            *models.DatabaseSchema
+	width             int
+	height            int
+	ready             bool
+	schemaFetching    bool //might be same as loading
+	connectionMessage string
+}
+
+type SchemaFetchedMsg struct {
+	Schema *models.DatabaseSchema
+}
+
+type ConnectionMsg struct {
+	Message string
 }
 
 // NewModel creates a new TUI model
@@ -59,8 +76,15 @@ func NewModel() Model {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
+	vp := viewport.New(100, 30)
+	vp.Style = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#90CAF9")).
+		PaddingRight(1)
+
 	return Model{
 		spinner:    s,
+		viewport:   vp,
 		loading:    false,
 		loadingMsg: "",
 		content:    "",
@@ -100,7 +124,7 @@ func (m *Model) SetError(err error) {
 }
 
 // SetSchema sets the schema
-func (m *Model) SetSchema(schema *models.Schema) {
+func (m *Model) SetSchema(schema *models.DatabaseSchema) {
 	m.schema = schema
 }
 
@@ -117,7 +141,17 @@ type ErrorMsg struct {
 
 // SchemaMsg is a command to set schema
 type SchemaMsg struct {
-	Schema *models.Schema
+	Schema *models.DatabaseSchema
+}
+
+func StartExtraction(extract func() (*models.DatabaseSchema, error)) tea.Cmd {
+	return func() tea.Msg {
+		schema, err := extract()
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
+		return SchemaFetchedMsg{Schema: schema}
+	}
 }
 
 // Update updates the model based on messages
@@ -178,6 +212,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.SetContent(m.content)
 		}
 		return m, nil
+
+	case SchemaFetchedMsg:
+		m.schemaFetching = false
+		m.schema = msg.Schema
+		m.content = buildSchemaView(m.schema)
+		m.viewport.SetContent(m.content)
+		return m, nil
+
+	case ConnectionMsg:
+		m.connectionMessage = msg.Message
+		return m, nil
 	}
 
 	// Handle viewport updates
@@ -195,10 +240,17 @@ func (m Model) View() string {
 		return "Initializing..."
 	}
 
+	var connInfo string
+
 	// Header
 	header := titleStyle.Render("Schema Drift Detector")
 	header = lipgloss.JoinHorizontal(lipgloss.Top, header)
 	header = lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(header)
+
+	// Connection info
+	if m.connectionMessage != "" {
+		connInfo = infoStyle.Render(m.connectionMessage)
+	}
 
 	// Content
 	content := m.viewport.View()
@@ -215,67 +267,70 @@ func (m Model) View() string {
 	}
 
 	// Combine everything
-	return fmt.Sprintf("%s\n%s\n%s", header, content, footer)
+	return fmt.Sprintf("%s\n%s\n%s\n%s", header, connInfo, content, footer)
 }
 
 // buildSchemaView creates a text representation of the schema
-func buildSchemaView(schema *models.Schema) string {
+func buildSchemaView(dbSchema *models.DatabaseSchema) string {
 	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("Database: %s\n\n", dbSchema.Name))
 
-	builder.WriteString(fmt.Sprintf("Schema: %s\n\n", schema.Name))
+	for _, schema := range dbSchema.Schemas {
+		builder.WriteString(fmt.Sprintf("Schema: %s\n\n", schema.Name))
 
-	// Tables
-	builder.WriteString(fmt.Sprintf("Tables (%d):\n", len(schema.Tables)))
-	builder.WriteString("----------------------------------------\n")
+		// Tables
+		builder.WriteString(fmt.Sprintf("Tables (%d):\n", len(schema.Tables)))
+		builder.WriteString("----------------------------------------\n")
 
-	// Get sorted table names
-	tableNames := make([]string, 0, len(schema.Tables))
-	for _, table := range schema.Tables {
-		tableNames = append(tableNames, table.Name)
-	}
-	sort.Strings(tableNames)
-
-	for i := range tableNames {
-		table := schema.Tables[i]
-		builder.WriteString(fmt.Sprintf("  • %s\n", table.Name))
-
-		// Columns
-		for _, col := range table.Columns {
-			nullable := "NOT NULL"
-			if col.IsNullable {
-				nullable = "NULL"
-			}
-			builder.WriteString(fmt.Sprintf("    - %s: %s %s\n", col.Name, col.DataType, nullable))
+		// Get sorted table names
+		tableNames := make([]string, 0, len(schema.Tables))
+		for _, table := range schema.Tables {
+			tableNames = append(tableNames, table.Name)
 		}
+		sort.Strings(tableNames)
 
-		// Constraints
-		if len(table.Constraints) > 0 {
-			builder.WriteString("    Constraints:\n")
-			for _, constraint := range table.Constraints {
-				builder.WriteString(fmt.Sprintf("    - %s (%s)\n", constraint.Name, constraint.Type))
-			}
-		}
+		for i := range tableNames {
+			table := schema.Tables[i]
+			builder.WriteString(fmt.Sprintf("  • %s\n", table.Name))
 
-		// Indexes
-		if len(schema.Indexes) > 0 {
-			builder.WriteString("    Indexes:\n")
-			for _, index := range schema.Indexes {
-				unique := ""
-				if index.IsUnique {
-					unique = "UNIQUE "
+			// Columns
+			for _, col := range table.Columns {
+				nullable := "NOT NULL"
+				if col.IsNullable {
+					nullable = "NULL"
 				}
-				builder.WriteString(fmt.Sprintf("    - %s%s (%s)\n", unique, index.Name, strings.Join(index.Columns, ", ")))
+				builder.WriteString(fmt.Sprintf("    - %s: %s %s\n", col.Name, col.DataType, nullable))
+			}
+
+			// Constraints
+			if len(table.Constraints) > 0 {
+				builder.WriteString("    Constraints:\n")
+				for _, constraint := range table.Constraints {
+					builder.WriteString(fmt.Sprintf("    - %s (%s)\n", constraint.Name, constraint.Type))
+				}
+			}
+
+			// Indexes
+			if len(schema.Indexes) > 0 {
+				builder.WriteString("    Indexes:\n")
+				for _, index := range schema.Indexes {
+					unique := ""
+					if index.IsUnique {
+						unique = "UNIQUE "
+					}
+					builder.WriteString(fmt.Sprintf("    - %s%s (%s)\n", unique, index.Name, strings.Join(index.Columns, ", ")))
+				}
 			}
 		}
-	}
 
-	builder.WriteString("\n")
+		builder.WriteString("\n")
+	}
 
 	return builder.String()
 }
 
 // RunTUI runs the TUI with the given schema
-func RunTUI(schema *models.Schema) error {
+func RunTUI(schema *models.DatabaseSchema) error {
 	m := NewModel()
 	m.schema = schema
 
@@ -285,6 +340,13 @@ func RunTUI(schema *models.Schema) error {
 	}
 
 	return nil
+}
+
+// SetConnectionInfo sets the connection information
+func SetConnectionInfo(message string) tea.Cmd {
+	return func() tea.Msg {
+		return ConnectionMsg{Message: message}
+	}
 }
 
 func init() {

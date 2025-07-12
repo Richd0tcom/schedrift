@@ -7,6 +7,7 @@ import (
 
 	"github.com/Richd0tcom/schedrift/internal/config"
 	"github.com/Richd0tcom/schedrift/internal/db/postgres"
+	"github.com/Richd0tcom/schedrift/internal/models"
 )
 
 type DatabaseDriver string
@@ -23,6 +24,7 @@ type Connection interface {
 	QueryRow(query string, args ...any) *sql.Row
 	Exec(query string, args ...any) (sql.Result, error)
 	GetVersion() (string, error)
+	GetDriverName() string
 }
 
 func NewConnection(cfg config.DatabaseConfig) (Connection, error) {
@@ -31,6 +33,7 @@ func NewConnection(cfg config.DatabaseConfig) (Connection, error) {
 	switch dbType {
 		case PostgreSQL:
 			conn, err:= postgres.NewConnection(cfg)
+			conn.DriverName = string(PostgreSQL)
 
 			if err != nil {
 				return nil, err
@@ -45,3 +48,19 @@ func NewConnection(cfg config.DatabaseConfig) (Connection, error) {
 
 	}
 }
+
+type Extractor interface {
+	Extract(includedSchemas []string, excludedSchemas []string) (*models.DatabaseSchema, error)
+}
+
+func NewExtractor(conn Connection) (Extractor, error) {
+	switch  {
+	case conn.GetDriverName() == string(PostgreSQL):
+        return postgres.NewPGExtractor(conn.(*postgres.PGConnection)), nil
+    default:
+        return 	nil, fmt.Errorf("invalid driver type")
+	}
+}
+
+
+
